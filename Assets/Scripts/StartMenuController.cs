@@ -40,6 +40,12 @@ public class StartMenuController : MonoBehaviour
             audioObj.AddComponent<AudioManager>();
         }
 
+        if (SessionStatsManager.Instance == null)
+        {
+            GameObject statsObj = new GameObject("SessionStatsManager");
+            statsObj.AddComponent<SessionStatsManager>();
+        }
+
         // Subscribe to balance change events
         PlayerWallet.Instance.OnBalanceChanged += UpdateBalanceDisplay;
 

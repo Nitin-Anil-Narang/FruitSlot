@@ -47,6 +47,13 @@ public class SlotMachineController : MonoBehaviour
     [SerializeField] private Button rulesButton;
     [SerializeField] private Button rulesCloseButton;
 
+    [Header("Session Statistics Modal")]
+    [SerializeField] private GameObject statsModal;
+    [SerializeField] private Button statsButton;
+    [SerializeField] private Button statsCloseButton;
+    [SerializeField] private Button statsResetButton;
+    [SerializeField] private TextMeshProUGUI statsContentText;
+
     [Header("Win & Bonus Popups")]
     [SerializeField] private GameObject winPopupModal;
     [SerializeField] private TextMeshProUGUI winPopupAmountText;
@@ -97,7 +104,7 @@ public class SlotMachineController : MonoBehaviour
 
     private void Start()
     {
-        // 1. Ensure PlayerWallet and AudioManager exist
+        // 1. Ensure PlayerWallet, AudioManager, and SessionStatsManager exist
         if (PlayerWallet.Instance == null)
         {
             GameObject walletObj = new GameObject("PlayerWallet");
@@ -108,6 +115,12 @@ public class SlotMachineController : MonoBehaviour
         {
             GameObject audioObj = new GameObject("AudioManager");
             audioObj.AddComponent<AudioManager>();
+        }
+
+        if (SessionStatsManager.Instance == null)
+        {
+            GameObject statsObj = new GameObject("SessionStatsManager");
+            statsObj.AddComponent<SessionStatsManager>();
         }
 
         PlayerWallet.Instance.OnBalanceChanged += UpdateBalanceDisplay;
@@ -164,7 +177,10 @@ public class SlotMachineController : MonoBehaviour
 
         if (devPanel != null) devPanel.SetActive(false);
 
-        // 5. Initial Displays
+        // 5. Session Statistics UI Setup
+        SetupSessionStatsUI();
+
+        // 6. Initial Displays
         UpdateBalanceDisplay(PlayerWallet.Instance.CurrentBalance);
         UpdateBetDisplay();
         UpdateWinDisplay(0);
@@ -202,6 +218,12 @@ public class SlotMachineController : MonoBehaviour
             {
                 OnAudioToggleClicked();
             }
+
+            // 'S' key toggles Session Statistics Modal
+            if (UnityEngine.InputSystem.Keyboard.current.sKey.wasPressedThisFrame)
+            {
+                ToggleStatsModal();
+            }
         }
     }
 
@@ -209,6 +231,9 @@ public class SlotMachineController : MonoBehaviour
     {
         if (PlayerWallet.Instance != null)
             PlayerWallet.Instance.OnBalanceChanged -= UpdateBalanceDisplay;
+
+        if (SessionStatsManager.Instance != null)
+            SessionStatsManager.Instance.OnStatsUpdated -= UpdateStatsDisplay;
 
         for (int i = 0; i < reels.Length; i++)
         {
@@ -283,6 +308,135 @@ public class SlotMachineController : MonoBehaviour
 
     #endregion
 
+    #region Session Statistics UI
+
+    private void SetupSessionStatsUI()
+    {
+        // 1. Create Top Bar STATS Button if not assigned
+        if (statsButton == null && rulesButton != null)
+        {
+            GameObject btnObj = Instantiate(rulesButton.gameObject, rulesButton.transform.parent);
+            btnObj.name = "Btn_Stats";
+            RectTransform rect = btnObj.GetComponent<RectTransform>();
+            rect.anchoredPosition = new Vector2(540, 0);
+            rect.sizeDelta = new Vector2(120, 50);
+
+            TextMeshProUGUI tmp = btnObj.GetComponentInChildren<TextMeshProUGUI>();
+            if (tmp != null) tmp.text = "STATS";
+
+            statsButton = btnObj.GetComponent<Button>();
+        }
+
+        // 2. Create Stats Modal by duplicating rulesModal if not assigned
+        if (statsModal == null && rulesModal != null)
+        {
+            statsModal = Instantiate(rulesModal, rulesModal.transform.parent);
+            statsModal.name = "SessionStatsModal";
+
+            // Find Title and Content TextMeshProUGUI components
+            TextMeshProUGUI[] tmps = statsModal.GetComponentsInChildren<TextMeshProUGUI>(true);
+            foreach (var t in tmps)
+            {
+                if (t.gameObject.name.Contains("Title"))
+                {
+                    t.text = "SESSION STATISTICS";
+                }
+                else if (t.gameObject.name.Contains("Content"))
+                {
+                    statsContentText = t;
+                    t.fontSize = 21;
+                    t.lineSpacing = 16;
+                }
+            }
+
+            // Find Close button and create Reset Stats button alongside it
+            Button[] btns = statsModal.GetComponentsInChildren<Button>(true);
+            foreach (var b in btns)
+            {
+                if (b.gameObject.name.Contains("Close"))
+                {
+                    statsCloseButton = b;
+                    RectTransform closeRect = b.GetComponent<RectTransform>();
+                    closeRect.anchoredPosition = new Vector2(130, -220);
+                    closeRect.sizeDelta = new Vector2(200, 55);
+
+                    GameObject resetObj = Instantiate(b.gameObject, b.transform.parent);
+                    resetObj.name = "Btn_StatsReset";
+                    RectTransform resetRect = resetObj.GetComponent<RectTransform>();
+                    resetRect.anchoredPosition = new Vector2(-130, -220);
+                    resetRect.sizeDelta = new Vector2(200, 55);
+
+                    Image resetImg = resetObj.GetComponent<Image>();
+                    if (resetImg != null) resetImg.color = new Color(0.75f, 0.25f, 0.25f, 1f);
+
+                    TextMeshProUGUI resetTmp = resetObj.GetComponentInChildren<TextMeshProUGUI>();
+                    if (resetTmp != null) resetTmp.text = "RESET STATS";
+
+                    statsResetButton = resetObj.GetComponent<Button>();
+                    break;
+                }
+            }
+        }
+
+        if (statsButton != null)
+            statsButton.onClick.AddListener(OpenStatsModal);
+
+        if (statsCloseButton != null)
+            statsCloseButton.onClick.AddListener(() =>
+            {
+                AudioManager.Instance?.PlayButtonClick();
+                if (statsModal != null) statsModal.SetActive(false);
+            });
+
+        if (statsResetButton != null)
+            statsResetButton.onClick.AddListener(OnResetStatsClicked);
+
+        if (SessionStatsManager.Instance != null)
+            SessionStatsManager.Instance.OnStatsUpdated += UpdateStatsDisplay;
+
+        if (statsModal != null)
+            statsModal.SetActive(false);
+    }
+
+    public void OpenStatsModal()
+    {
+        AudioManager.Instance?.PlayButtonClick();
+        UpdateStatsDisplay();
+        if (statsModal != null) statsModal.SetActive(true);
+    }
+
+    public void ToggleStatsModal()
+    {
+        if (statsModal != null)
+        {
+            if (statsModal.activeSelf)
+            {
+                statsModal.SetActive(false);
+            }
+            else
+            {
+                OpenStatsModal();
+            }
+        }
+    }
+
+    public void UpdateStatsDisplay()
+    {
+        if (statsContentText != null && SessionStatsManager.Instance != null)
+        {
+            statsContentText.text = SessionStatsManager.Instance.GetFormattedSummary();
+        }
+    }
+
+    public void OnResetStatsClicked()
+    {
+        AudioManager.Instance?.PlayButtonClick();
+        SessionStatsManager.Instance?.ResetStats();
+        UpdateStatsDisplay();
+    }
+
+    #endregion
+
     #region Spin & RNG Logic
 
     private void OnLeverClicked()
@@ -353,6 +507,8 @@ public class SlotMachineController : MonoBehaviour
         {
             freeSpinsRemaining--;
         }
+
+        SessionStatsManager.Instance?.RecordSpin(isFreeSpin ? 0 : currentBetAmount);
 
         StartCoroutine(ExecuteSpinRoutine(isFreeSpin));
     }
@@ -561,6 +717,7 @@ public class SlotMachineController : MonoBehaviour
 
             int totalWin = currentBetAmount * multiplier;
             PlayerWallet.Instance.AddWin(totalWin);
+            SessionStatsManager.Instance?.RecordWin(totalWin, match.isBonus);
 
             // Play celebratory audio fanfare
             if (match.isBonus)
