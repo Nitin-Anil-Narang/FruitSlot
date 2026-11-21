@@ -176,7 +176,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 2193077994593488821, guid: 277b6d8a76e3347b5bcc160b336fa4bc, type: 3}
+  m_Sprite: {fileID: -2391669244243282240, guid: a261c52a4cb174900b12f323235a9b38, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -251,7 +251,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -5620835742497143143, guid: 450724f43af7f4c5797f7bfdf4d7d73b, type: 3}
+  m_Sprite: {fileID: 2193077994593488821, guid: 277b6d8a76e3347b5bcc160b336fa4bc, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -2113,7 +2113,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -2391669244243282240, guid: a261c52a4cb174900b12f323235a9b38, type: 3}
+  m_Sprite: {fileID: -5620835742497143143, guid: 450724f43af7f4c5797f7bfdf4d7d73b, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -2657,7 +2657,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -5620835742497143143, guid: 450724f43af7f4c5797f7bfdf4d7d73b, type: 3}
+  m_Sprite: {fileID: 2193077994593488821, guid: 277b6d8a76e3347b5bcc160b336fa4bc, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -3970,7 +3970,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 2193077994593488821, guid: 277b6d8a76e3347b5bcc160b336fa4bc, type: 3}
+  m_Sprite: {fileID: -2391669244243282240, guid: a261c52a4cb174900b12f323235a9b38, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -4120,7 +4120,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 3x JUICY PLUM
+  m_text: 3x SWEET CHERRIES
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

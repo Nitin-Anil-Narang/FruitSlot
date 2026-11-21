@@ -58,6 +58,29 @@ public class SlotMachineController : MonoBehaviour
     [SerializeField] private Button addFundsButton;
     [SerializeField] private Button lowFundsCloseButton;
 
+    [Header("Developer Test / Cheat Controls")]
+    [SerializeField] private GameObject devPanel;
+    [SerializeField] private Button devToggleBtn;
+    [SerializeField] private Button devCloseBtn;
+    [SerializeField] private Button testWin777Btn;
+    [SerializeField] private Button testWinBellBtn;
+    [SerializeField] private Button testWinCherryBtn;
+    [SerializeField, HideInInspector] private Button testWinPlumBtn;
+    [SerializeField] private Button testWinBarBtn;
+    [SerializeField] private Button testNearMissBtn;
+    [SerializeField] private Button devAddFundsBtn;
+
+    [Header("RNG & Mathematics Configuration")]
+    [Tooltip("Probability of hitting a 3-of-a-kind win (default: 0.12 = 12% hit rate)")]
+    [Range(0.01f, 0.40f)]
+    [SerializeField] private float winProbability = 0.12f;
+
+    [Tooltip("Probability of a suspenseful near-miss on losing rolls (Reel 1 & 2 match)")]
+    [Range(0f, 0.60f)]
+    [SerializeField] private float nearMissProbability = 0.30f;
+
+    private SymbolData[] forcedNextOutcome = null;
+
     // Game Runtime State
     public GameState CurrentState { get; private set; } = GameState.Idle;
     private int reelsStoppedCount = 0;
@@ -109,13 +132,26 @@ public class SlotMachineController : MonoBehaviour
         if (rulesModal != null)
             rulesModal.SetActive(false);
 
-        if (lowFundsCloseButton != null && lowFundsModal != null)
-            lowFundsCloseButton.onClick.AddListener(() => lowFundsModal.SetActive(false));
+        if (lowFundsCloseButton != null)
+            lowFundsCloseButton.onClick.AddListener(OnBackToMenuClicked);
 
         if (addFundsButton != null)
             addFundsButton.onClick.AddListener(OnQuickAddFundsClicked);
 
-        // 4. Initial Displays
+        // 4. Developer Test Controls Listeners
+        if (devToggleBtn != null) devToggleBtn.onClick.AddListener(ToggleDevPanel);
+        if (devCloseBtn != null) devCloseBtn.onClick.AddListener(() => { if (devPanel != null) devPanel.SetActive(false); });
+        if (testWin777Btn != null) testWin777Btn.onClick.AddListener(() => ForceSymbolWin(1));
+        if (testWinBellBtn != null) testWinBellBtn.onClick.AddListener(() => ForceSymbolWin(2));
+        Button cherryBtn = testWinCherryBtn != null ? testWinCherryBtn : testWinPlumBtn;
+        if (cherryBtn != null) cherryBtn.onClick.AddListener(() => ForceSymbolWin(3));
+        if (testWinBarBtn != null) testWinBarBtn.onClick.AddListener(() => ForceSymbolWin(4));
+        if (testNearMissBtn != null) testNearMissBtn.onClick.AddListener(ForceNearMissOutcome);
+        if (devAddFundsBtn != null) devAddFundsBtn.onClick.AddListener(() => PlayerWallet.Instance?.AddMoney(1000));
+
+        if (devPanel != null) devPanel.SetActive(false);
+
+        // 5. Initial Displays
         UpdateBalanceDisplay(PlayerWallet.Instance.CurrentBalance);
         UpdateBetDisplay();
         UpdateWinDisplay(0);
@@ -125,6 +161,29 @@ public class SlotMachineController : MonoBehaviour
 
         if (winPopupModal != null) winPopupModal.SetActive(false);
         if (lowFundsModal != null) lowFundsModal.SetActive(false);
+    }
+
+    private void Update()
+    {
+        // Keyboard Shortcuts (WebGL & Desktop)
+        if (UnityEngine.InputSystem.Keyboard.current != null)
+        {
+            // Backquote / Tilde (~) or F1 toggles Dev Test Panel
+            if (UnityEngine.InputSystem.Keyboard.current.backquoteKey.wasPressedThisFrame ||
+                UnityEngine.InputSystem.Keyboard.current.f1Key.wasPressedThisFrame)
+            {
+                ToggleDevPanel();
+            }
+
+            // Spacebar pulls lever to spin
+            if (UnityEngine.InputSystem.Keyboard.current.spaceKey.wasPressedThisFrame)
+            {
+                if (CurrentState == GameState.Idle)
+                {
+                    OnLeverClicked();
+                }
+            }
+        }
     }
 
     private void OnDestroy()
@@ -299,15 +358,22 @@ public class SlotMachineController : MonoBehaviour
 
     /// <summary>
     /// Weighted RNG selection: determines outcome upfront before reels visually stop.
-    /// Simulates authentic slot mathematics with fair probability weighting.
+    /// Simulates authentic slot mathematics with fair probability weighting and near-miss suspense.
     /// </summary>
     private SymbolData[] DetermineRNGOutcome()
     {
+        // 1. Consume developer cheat/test forced outcome if armed
+        if (forcedNextOutcome != null)
+        {
+            SymbolData[] forced = forcedNextOutcome;
+            forcedNextOutcome = null; // consume once
+            return forced;
+        }
+
         SymbolData[] targets = new SymbolData[3];
 
-        // Overall win chance (~30% hit frequency for engaging game feel)
-        float winChance = 0.32f;
-        bool isWin = UnityEngine.Random.value < winChance;
+        // 2. Controlled fair casino hit frequency (~12% chance of 3-of-a-kind)
+        bool isWin = UnityEngine.Random.value < winProbability;
 
         if (isWin)
         {
@@ -319,28 +385,89 @@ public class SlotMachineController : MonoBehaviour
         }
         else
         {
-            // Pick independent random symbols, ensuring at least one differs
-            targets[0] = PickWeightedRandomSymbol();
-            targets[1] = PickWeightedRandomSymbol();
-            targets[2] = PickWeightedRandomSymbol();
-
-            // Guard against accidental 3-of-a-kind on a losing roll
-            if (targets[0].id == targets[1].id && targets[1].id == targets[2].id)
+            // Losing roll: 30% chance of a dramatic near-miss (Reel 1 & 2 match, Reel 3 differs)
+            bool isNearMiss = UnityEngine.Random.value < nearMissProbability;
+            if (isNearMiss)
             {
-                // Force last reel to a different symbol
-                foreach (var sym in symbols)
+                SymbolData highSym = PickWeightedRandomSymbol();
+                targets[0] = highSym;
+                targets[1] = highSym;
+                targets[2] = GetDifferentSymbol(highSym);
+            }
+            else
+            {
+                // Independent roll ensuring not all 3 match
+                targets[0] = PickWeightedRandomSymbol();
+                targets[1] = PickWeightedRandomSymbol();
+                targets[2] = PickWeightedRandomSymbol();
+
+                if (targets[0].id == targets[1].id && targets[1].id == targets[2].id)
                 {
-                    if (sym.id != targets[0].id)
-                    {
-                        targets[2] = sym;
-                        break;
-                    }
+                    targets[2] = GetDifferentSymbol(targets[0]);
                 }
             }
         }
 
         return targets;
     }
+
+    private SymbolData GetDifferentSymbol(SymbolData exclude)
+    {
+        if (symbols == null || symbols.Length <= 1) return exclude;
+        for (int i = 0; i < symbols.Length; i++)
+        {
+            if (symbols[i] != null && symbols[i].id != exclude.id)
+                return symbols[i];
+        }
+        return symbols[0];
+    }
+
+    #region Developer Test & Cheat Controls
+
+    public void ForceSymbolWin(int symbolId)
+    {
+        if (CurrentState != GameState.Idle) return;
+        SymbolData target = null;
+        if (symbols != null)
+        {
+            for (int i = 0; i < symbols.Length; i++)
+            {
+                if (symbols[i] != null && symbols[i].id == symbolId)
+                {
+                    target = symbols[i];
+                    break;
+                }
+            }
+        }
+
+        if (target != null)
+        {
+            forcedNextOutcome = new SymbolData[] { target, target, target };
+            StartCoroutine(PullLeverAndSpinRoutine());
+        }
+    }
+
+    public void ForceNearMissOutcome()
+    {
+        if (CurrentState != GameState.Idle) return;
+        if (symbols != null && symbols.Length >= 2)
+        {
+            SymbolData highSym = symbols[0]; // Lucky Seven
+            SymbolData diffSym = symbols.Length >= 4 ? symbols[3] : (symbols.Length > 2 ? symbols[2] : symbols[1]); // Classic Bar
+            forcedNextOutcome = new SymbolData[] { highSym, highSym, diffSym };
+            StartCoroutine(PullLeverAndSpinRoutine());
+        }
+    }
+
+    public void ToggleDevPanel()
+    {
+        if (devPanel != null)
+        {
+            devPanel.SetActive(!devPanel.activeSelf);
+        }
+    }
+
+    #endregion
 
     private SymbolData PickWeightedRandomSymbol()
     {
