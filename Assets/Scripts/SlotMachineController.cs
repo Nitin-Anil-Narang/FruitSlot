@@ -375,10 +375,86 @@ public class SlotMachineController : MonoBehaviour
     private IEnumerator EvaluateOutcomeRoutine(SymbolData[] finalSymbols, bool isFreeSpin)
     {
         CurrentState = GameState.Evaluating;
+
+        // Check if all 3 symbols match
+        bool isMatch = (finalSymbols[0].id == finalSymbols[1].id && finalSymbols[1].id == finalSymbols[2].id);
+
+        if (isMatch)
+        {
+            CurrentState = GameState.Payout;
+            SymbolData match = finalSymbols[0];
+
+            int multiplier = match.payoutMultiplier;
+            if (isFreeSpin) multiplier *= FreeSpinsMultiplier;
+
+            int totalWin = currentBetAmount * multiplier;
+            PlayerWallet.Instance.AddWin(totalWin);
+
+            // Animate rolling win count
+            yield return StartCoroutine(CountUpWinRoutine(totalWin));
+
+            // Check for Bonus Feature trigger
+            if (match.isBonus)
+            {
+                freeSpinsRemaining += FreeSpinsCount;
+                if (statusBannerText != null)
+                    statusBannerText.text = $"BONUS! {FreeSpinsCount} FREE SPINS AWARDED!";
+            }
+            else
+            {
+                if (statusBannerText != null)
+                    statusBannerText.text = multiplier >= 50 ? "JACKPOT WINNER!" : "BIG WIN!";
+            }
+
+            // Show celebratory popup for big wins
+            if (multiplier >= 25 && winPopupModal != null)
+            {
+                if (winPopupTitleText != null)
+                    winPopupTitleText.text = multiplier >= 50 ? "JACKPOT WIN!" : "BIG WIN!";
+                if (winPopupAmountText != null)
+                    winPopupAmountText.text = $"+${totalWin:N0}";
+
+                winPopupModal.SetActive(true);
+            }
+        }
+        else
+        {
+            if (statusBannerText != null)
+            {
+                statusBannerText.text = freeSpinsRemaining > 0
+                    ? $"FREE SPINS ACTIVE ({freeSpinsRemaining} LEFT)"
+                    : "TRY AGAIN!";
+            }
+        }
+
         yield return new WaitForSeconds(0.4f);
 
         CurrentState = GameState.Idle;
         SetControlsInteractable(true);
+
+        // Auto-spin next free spin if bonus active
+        if (freeSpinsRemaining > 0)
+        {
+            yield return new WaitForSeconds(0.8f);
+            OnSpinClicked();
+        }
+    }
+
+    private IEnumerator CountUpWinRoutine(int targetAmount)
+    {
+        float duration = 0.8f;
+        float elapsed = 0f;
+        int current = 0;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            current = (int)Mathf.Lerp(0, targetAmount, elapsed / duration);
+            UpdateWinDisplay(current);
+            yield return null;
+        }
+
+        UpdateWinDisplay(targetAmount);
     }
 
     private void SetControlsInteractable(bool interactable)
