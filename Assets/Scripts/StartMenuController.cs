@@ -27,11 +27,17 @@ public class StartMenuController : MonoBehaviour
 
     private void Start()
     {
-        // Ensure a PlayerWallet exists in the scene
+        // Ensure a PlayerWallet and AudioManager exist in the scene
         if (PlayerWallet.Instance == null)
         {
             GameObject walletObj = new GameObject("PlayerWallet");
             walletObj.AddComponent<PlayerWallet>();
+        }
+
+        if (AudioManager.Instance == null)
+        {
+            GameObject audioObj = new GameObject("AudioManager");
+            audioObj.AddComponent<AudioManager>();
         }
 
         // Subscribe to balance change events
@@ -39,25 +45,25 @@ public class StartMenuController : MonoBehaviour
 
         // Hook up button listeners
         if (startGameButton != null)
-            startGameButton.onClick.AddListener(StartGame);
+            startGameButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); StartGame(); });
 
         if (add100Button != null)
-            add100Button.onClick.AddListener(() => AddMoney(100));
+            add100Button.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); AddMoney(100); });
 
         if (add500Button != null)
-            add500Button.onClick.AddListener(() => AddMoney(500));
+            add500Button.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); AddMoney(500); });
 
         if (add1000Button != null)
-            add1000Button.onClick.AddListener(() => AddMoney(1000));
+            add1000Button.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); AddMoney(1000); });
 
         if (resetButton != null)
-            resetButton.onClick.AddListener(ResetBalance);
+            resetButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); ResetBalance(); });
 
         if (openRulesButton != null && rulesModal != null)
-            openRulesButton.onClick.AddListener(() => rulesModal.SetActive(true));
+            openRulesButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); rulesModal.SetActive(true); });
 
         if (closeRulesButton != null && rulesModal != null)
-            closeRulesButton.onClick.AddListener(() => rulesModal.SetActive(false));
+            closeRulesButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); rulesModal.SetActive(false); });
 
         if (rulesModal != null)
             rulesModal.SetActive(false);

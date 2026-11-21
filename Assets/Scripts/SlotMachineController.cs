@@ -58,6 +58,10 @@ public class SlotMachineController : MonoBehaviour
     [SerializeField] private Button addFundsButton;
     [SerializeField] private Button lowFundsCloseButton;
 
+    [Header("Audio Settings")]
+    [SerializeField] private Button audioToggleBtn;
+    [SerializeField] private TextMeshProUGUI audioToggleText;
+
     [Header("Developer Test / Cheat Controls")]
     [SerializeField] private GameObject devPanel;
     [SerializeField] private Button devToggleBtn;
@@ -93,11 +97,17 @@ public class SlotMachineController : MonoBehaviour
 
     private void Start()
     {
-        // 1. Ensure PlayerWallet exists
+        // 1. Ensure PlayerWallet and AudioManager exist
         if (PlayerWallet.Instance == null)
         {
             GameObject walletObj = new GameObject("PlayerWallet");
             walletObj.AddComponent<PlayerWallet>();
+        }
+
+        if (AudioManager.Instance == null)
+        {
+            GameObject audioObj = new GameObject("AudioManager");
+            audioObj.AddComponent<AudioManager>();
         }
 
         PlayerWallet.Instance.OnBalanceChanged += UpdateBalanceDisplay;
@@ -115,28 +125,31 @@ public class SlotMachineController : MonoBehaviour
         // 3. Setup Button Listeners
         if (spinButton != null) spinButton.onClick.AddListener(OnSpinClicked);
         if (leverButton != null) leverButton.onClick.AddListener(OnLeverClicked);
-        if (betPlusButton != null) betPlusButton.onClick.AddListener(OnBetPlusClicked);
-        if (betMinusButton != null) betMinusButton.onClick.AddListener(OnBetMinusClicked);
-        if (maxBetButton != null) maxBetButton.onClick.AddListener(OnMaxBetClicked);
-        if (backToMenuButton != null) backToMenuButton.onClick.AddListener(OnBackToMenuClicked);
+        if (betPlusButton != null) betPlusButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); OnBetPlusClicked(); });
+        if (betMinusButton != null) betMinusButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); OnBetMinusClicked(); });
+        if (maxBetButton != null) maxBetButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); OnMaxBetClicked(); });
+        if (backToMenuButton != null) backToMenuButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); OnBackToMenuClicked(); });
 
         if (winPopupCloseButton != null && winPopupModal != null)
-            winPopupCloseButton.onClick.AddListener(() => winPopupModal.SetActive(false));
+            winPopupCloseButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); winPopupModal.SetActive(false); });
 
         if (rulesButton != null && rulesModal != null)
-            rulesButton.onClick.AddListener(() => rulesModal.SetActive(true));
+            rulesButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); rulesModal.SetActive(true); });
 
         if (rulesCloseButton != null && rulesModal != null)
-            rulesCloseButton.onClick.AddListener(() => rulesModal.SetActive(false));
+            rulesCloseButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); rulesModal.SetActive(false); });
 
         if (rulesModal != null)
             rulesModal.SetActive(false);
 
         if (lowFundsCloseButton != null)
-            lowFundsCloseButton.onClick.AddListener(OnBackToMenuClicked);
+            lowFundsCloseButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); OnBackToMenuClicked(); });
 
         if (addFundsButton != null)
-            addFundsButton.onClick.AddListener(OnQuickAddFundsClicked);
+            addFundsButton.onClick.AddListener(() => { AudioManager.Instance?.PlayButtonClick(); OnQuickAddFundsClicked(); });
+
+        if (audioToggleBtn != null)
+            audioToggleBtn.onClick.AddListener(OnAudioToggleClicked);
 
         // 4. Developer Test Controls Listeners
         if (devToggleBtn != null) devToggleBtn.onClick.AddListener(ToggleDevPanel);
@@ -182,6 +195,12 @@ public class SlotMachineController : MonoBehaviour
                 {
                     OnLeverClicked();
                 }
+            }
+
+            // 'M' key toggles audio mute
+            if (UnityEngine.InputSystem.Keyboard.current.mKey.wasPressedThisFrame)
+            {
+                OnAudioToggleClicked();
             }
         }
     }
@@ -245,6 +264,23 @@ public class SlotMachineController : MonoBehaviour
             winText.text = amount > 0 ? $"${amount:N0}" : "$0";
     }
 
+    public void OnAudioToggleClicked()
+    {
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.ToggleMute();
+            UpdateAudioButtonDisplay();
+        }
+    }
+
+    private void UpdateAudioButtonDisplay()
+    {
+        if (audioToggleText != null && AudioManager.Instance != null)
+        {
+            audioToggleText.text = AudioManager.Instance.IsMuted ? "SFX: OFF" : "SFX: ON";
+        }
+    }
+
     #endregion
 
     #region Spin & RNG Logic
@@ -252,6 +288,7 @@ public class SlotMachineController : MonoBehaviour
     private void OnLeverClicked()
     {
         if (CurrentState != GameState.Idle) return;
+        AudioManager.Instance?.PlayLeverPull();
         StartCoroutine(PullLeverAndSpinRoutine());
     }
 
@@ -283,6 +320,7 @@ public class SlotMachineController : MonoBehaviour
     public void OnSpinClicked()
     {
         if (CurrentState != GameState.Idle) return;
+        AudioManager.Instance?.PlayLeverPull();
         StartCoroutine(AnimateLeverPullRoutine());
         TriggerSpinAction();
     }
@@ -325,6 +363,8 @@ public class SlotMachineController : MonoBehaviour
         reelsStoppedCount = 0;
         SetControlsInteractable(false);
         UpdateWinDisplay(0);
+
+        AudioManager.Instance?.StartReelSpin();
 
         if (statusBannerText != null)
         {
@@ -493,6 +533,11 @@ public class SlotMachineController : MonoBehaviour
     private void HandleReelStopped(Reel reel)
     {
         reelsStoppedCount++;
+        AudioManager.Instance?.PlayReelStop(reelsStoppedCount - 1);
+        if (reelsStoppedCount >= reels.Length)
+        {
+            AudioManager.Instance?.StopReelSpin();
+        }
     }
 
     #endregion
@@ -516,6 +561,20 @@ public class SlotMachineController : MonoBehaviour
 
             int totalWin = currentBetAmount * multiplier;
             PlayerWallet.Instance.AddWin(totalWin);
+
+            // Play celebratory audio fanfare
+            if (match.isBonus)
+            {
+                AudioManager.Instance?.PlayFreeSpins();
+            }
+            else if (multiplier >= 100)
+            {
+                AudioManager.Instance?.PlayJackpot();
+            }
+            else
+            {
+                AudioManager.Instance?.PlayWin();
+            }
 
             // Animate rolling win count
             yield return StartCoroutine(CountUpWinRoutine(totalWin));
